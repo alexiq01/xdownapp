@@ -134,6 +134,9 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
+            HeroBanner()
+            Spacer(modifier = Modifier.height(18.dp))
+
             SearchBar(
                 input = uiState.input,
                 onInputChange = viewModel::onInputChanged,
@@ -223,6 +226,78 @@ fun HomeScreen(
             )
         }
     }
+}
+
+@Composable
+private fun HeroBanner() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFF0A1B3D), Color(0xFF123C73), Color(0xFF1769AA))
+                    )
+                )
+                .padding(horizontal = 20.dp, vertical = 18.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(Color.White.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Download,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Download smarter",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Fast, clean and ready for your gallery",
+                            color = Color.White.copy(alpha = 0.72f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroTag("Photos")
+                    HeroTag("Videos")
+                    HeroTag("Best quality")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroTag(text: String) {
+    Text(
+        text = text,
+        color = Color.White.copy(alpha = 0.9f),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.12f))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    )
 }
 
 @Composable
