@@ -138,7 +138,11 @@ class MediaRepository @Inject constructor(
     }
 
     private fun cleanInput(input: String): String {
-        return input.trim()
+        val trimmed = input.trim()
+        val withScheme = if (
+            trimmed.startsWith("x.com/") || trimmed.startsWith("twitter.com/")
+        ) "https://$trimmed" else trimmed
+        return withScheme
             .replace("www.", "")
             .replace("https://", "http://")
             .removeSuffix("/")
@@ -146,10 +150,10 @@ class MediaRepository @Inject constructor(
 
     private fun isTweetUrl(input: String): Boolean {
         val patterns = listOf(
-            """https?://x\.com/\w+/status/\d+.*""",
-            """https?://twitter\.com/\w+/status/\d+.*""",
-            """https?://mobile\.x\.com/\w+/status/\d+.*""",
-            """https?://mobile\.twitter\.com/\w+/status/\d+.*"""
+            """https?://x\.com/\w+/status(?:es)?/\d+.*""",
+            """https?://twitter\.com/\w+/status(?:es)?/\d+.*""",
+            """https?://mobile\.x\.com/\w+/status(?:es)?/\d+.*""",
+            """https?://mobile\.twitter\.com/\w+/status(?:es)?/\d+.*"""
         )
         return patterns.any { input.matches(Regex(it)) }
     }

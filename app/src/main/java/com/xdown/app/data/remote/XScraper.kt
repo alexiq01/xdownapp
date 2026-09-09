@@ -206,11 +206,50 @@ class XScraper @Inject constructor() {
             val tweet = tweetData["tweet"] as? Map<*, *> ?: tweetData
             val author = tweet["author"] as? Map<*, *>
             val media = tweet["media"] as? Map<*, *>
+            val allMedia = media?.get("all") as? List<*>
             val photos = media?.get("photos") as? List<*>
             val videos = media?.get("videos") as? List<*>
 
             val mediaEntities = mutableListOf<MediaEntity>()
 
+            if (!allMedia.isNullOrEmpty()) {
+                allMedia.forEach { rawItem ->
+                    val item = rawItem as? Map<*, *> ?: return@forEach
+                    val itemType = item["type"] as? String ?: "photo"
+                    val itemUrl = item["url"] as? String ?: return@forEach
+                    val formats = item["formats"] as? List<*>
+                    val variants = formats.orEmpty().mapNotNull { rawFormat ->
+                        val format = rawFormat as? Map<*, *> ?: return@mapNotNull null
+                        val formatUrl = format["url"] as? String ?: return@mapNotNull null
+                        if ((format["container"] as? String) != "mp4") return@mapNotNull null
+                        VideoVariant(
+                            contentType = "video/mp4",
+                            url = formatUrl,
+                            bitrate = (format["bitrate"] as? Number)?.toInt(),
+                            width = (item["width"] as? Number)?.toInt(),
+                            height = (item["height"] as? Number)?.toInt()
+                        )
+                    }
+                    mediaEntities.add(
+                        MediaEntity(
+                            idStr = tweetId,
+                            mediaUrlHttps = itemUrl,
+                            type = if (itemType == "photo") "photo" else "video",
+                            originalInfo = if (itemType == "photo") OriginalInfo(
+                                width = (item["width"] as? Number)?.toInt(),
+                                height = (item["height"] as? Number)?.toInt(),
+                                large = null, medium = null, small = null
+                            ) else null,
+                            videoInfo = if (itemType == "photo") null else VideoInfo(
+                                durationMillis = ((item["duration"] as? Number)?.toDouble()?.times(1000))?.toInt(),
+                                variants = variants.ifEmpty {
+                                    listOf(VideoVariant("video/mp4", itemUrl, null, null, null))
+                                }
+                            )
+                        )
+                    )
+                }
+            } else {
             photos?.forEach { photo ->
                 val p = photo as? Map<*, *> ?: return@forEach
                 val imgUrl = p["url"] as? String ?: p["thumbnail_url"] as? String
@@ -263,6 +302,8 @@ class XScraper @Inject constructor() {
                         )
                     )
                 )
+            }
+
             }
 
             if (mediaEntities.isEmpty()) return null
