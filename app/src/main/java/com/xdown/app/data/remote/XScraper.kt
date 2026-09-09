@@ -2,6 +2,7 @@ package com.xdown.app.data.remote
 
 import com.xdown.app.data.model.*
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -41,6 +42,9 @@ class XScraper @Inject constructor() {
             val normalizedUrl = normalizeTweetUrl(tweetUrl)
             val tweetId = extractTweetId(normalizedUrl) ?: return null
 
+            val syndicationResult = trySyndicationApi(tweetId)
+            if (syndicationResult != null) return syndicationResult
+
             val fxtwitterResult = tryFxtwitterApi(tweetId)
             if (fxtwitterResult != null) return fxtwitterResult
 
@@ -78,9 +82,116 @@ class XScraper @Inject constructor() {
         }
     }
 
+    private suspend fun trySyndicationApi(tweetId: String): TweetResponse? {
+        return try {
+            val token = calculateSyndicationToken(tweetId)
+            val url = "https://cdn.syndication.twimg.com/tweet-result?id=$tweetId&lang=en&token=$token"
+            val response = client.newCall(
+                Request.Builder().url(url).header("Accept", "application/json").get().build()
+            ).execute()
+            val body = response.body?.string() ?: return null
+            parseSyndicationResponse(body, tweetId)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseSyndicationResponse(body: String, tweetId: String): TweetResponse? {
+        val root = JsonParser.parseString(body).asJsonObject
+        val mediaJson = root.getAsJsonArray("mediaDetails") ?: return null
+        val media = mediaJson.mapNotNull { element ->
+            val item = element.asJsonObject
+            val type = item.stringValue("type") ?: "photo"
+            val url = item.stringValue("media_url_https") ?: return@mapNotNull null
+            val original = item.getAsJsonObject("original_info")
+            val variants = item.getAsJsonObject("video_info")
+                ?.getAsJsonArray("variants")
+                ?.mapNotNull { variantElement ->
+                    val variant = variantElement.asJsonObject
+                    VideoVariant(
+                        contentType = variant.stringValue("content_type"),
+                        url = variant.stringValue("url"),
+                        bitrate = variant.intValue("bitrate"),
+                        width = variant.intValue("width"),
+                        height = variant.intValue("height")
+                    )
+                }
+            MediaEntity(
+                idStr = item.stringValue("id_str") ?: tweetId,
+                mediaUrlHttps = url,
+                type = type,
+                originalInfo = OriginalInfo(
+                    width = original?.intValue("width"),
+                    height = original?.intValue("height"),
+                    large = null,
+                    medium = null,
+                    small = null
+                ),
+                videoInfo = if (variants.isNullOrEmpty()) null else VideoInfo(
+                    durationMillis = item.getAsJsonObject("video_info")?.intValue("duration_millis"),
+                    variants = variants
+                )
+            )
+        }
+        if (media.isEmpty()) return null
+        val user = root.getAsJsonObject("user")
+        val screenName = user?.stringValue("screen_name") ?: "unknown"
+        return TweetResponse(
+            data = TweetData(
+                tweetResult = TweetResult(
+                    result = TweetResultData(
+                        typename = "Tweet",
+                        restId = tweetId,
+                        core = TweetCore(
+                            userResults = UserResults(
+                                result = UserResult(
+                                    restId = user?.stringValue("id_str"),
+                                    userLegacy = UserLegacy(
+                                        screenName = screenName,
+                                        name = user?.stringValue("name"),
+                                        profileImageUrl = user?.stringValue("profile_image_url_https")
+                                    )
+                                )
+                            )
+                        ),
+                        legacy = TweetLegacy(
+                            fullText = root.stringValue("text"),
+                            entities = null,
+                            extendedEntities = ExtendedEntities(media = media)
+                        ),
+                        mediaDetails = media
+                    )
+                )
+            ),
+            errors = null
+        )
+    }
+
+    private fun calculateSyndicationToken(tweetId: String): String {
+        val number = tweetId.toDouble() / 1e15 * Math.PI
+        val integerPart = number.toLong().toString(36)
+        var fraction = number - number.toLong()
+        val fractionPart = buildString {
+            repeat(24) {
+                if (fraction <= 0.0) return@repeat
+                fraction *= 36
+                val digit = fraction.toInt()
+                append("0123456789abcdefghijklmnopqrstuvwxyz"[digit])
+                fraction -= digit
+            }
+        }
+        return (integerPart + fractionPart).replace("0", "")
+    }
+
+    private fun com.google.gson.JsonObject.stringValue(name: String): String? =
+        get(name)?.takeUnless { it.isJsonNull }?.asString
+
+    private fun com.google.gson.JsonObject.intValue(name: String): Int? =
+        get(name)?.takeUnless { it.isJsonNull }?.asInt
+
     private suspend fun tryFxtwitterApi(tweetId: String): TweetResponse? {
         return try {
-            val url = "https://api.fxtwitter.com/statuses?id=$tweetId"
+            val url = "https://api.fxtwitter.com/status/$tweetId"
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "Mozilla/5.0")
@@ -196,7 +307,7 @@ class XScraper @Inject constructor() {
 
     private suspend fun tryVxtwitterApi(tweetId: String): TweetResponse? {
         return try {
-            val url = "https://api.vxtwitter.com/statuses?id=$tweetId"
+            val url = "https://api.vxtwitter.com/status/$tweetId"
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "Mozilla/5.0")
