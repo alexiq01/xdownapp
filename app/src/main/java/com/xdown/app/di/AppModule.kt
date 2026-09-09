@@ -5,6 +5,8 @@ import com.xdown.app.data.remote.XScraper
 import com.xdown.app.data.repository.MediaRepository
 import com.xdown.app.domain.usecase.DownloadMediaUseCase
 import com.xdown.app.domain.usecase.FetchMediaUseCase
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,9 +33,10 @@ object AppModule {
     @Singleton
     fun provideMediaRepository(
         scraper: XScraper,
-        downloadService: DownloadService
+        downloadService: DownloadService,
+        @ApplicationContext context: Context
     ): MediaRepository {
-        return MediaRepository(scraper, downloadService)
+        return MediaRepository(scraper, downloadService, context)
     }
 
     @Provides

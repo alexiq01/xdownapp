@@ -1,8 +1,18 @@
 package com.xdown.app.data.repository
 
+import android.content.ContentValues
+import android.content.Context
+import android.media.MediaScannerConnection
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import com.xdown.app.data.model.*
 import com.xdown.app.data.remote.DownloadService
 import com.xdown.app.data.remote.XScraper
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.FileInputStream
 import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -10,7 +20,8 @@ import javax.inject.Singleton
 @Singleton
 class MediaRepository @Inject constructor(
     private val scraper: XScraper,
-    private val downloadService: DownloadService
+    private val downloadService: DownloadService,
+    @ApplicationContext private val context: Context
 ) {
     suspend fun fetchMedia(input: String): Result<List<MediaItem>> {
         return try {
@@ -59,10 +70,67 @@ class MediaRepository @Inject constructor(
                 onProgress(progress, downloaded, total)
             }
 
-            result.map { outputFile }
+            result.fold(
+                onSuccess = {
+                    publishToGallery(outputFile, mediaItem.type)
+                    Result.success(outputFile)
+                },
+                onFailure = { Result.failure(it) }
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private suspend fun publishToGallery(file: java.io.File, type: MediaType) {
+        withContext(Dispatchers.IO) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val (collection, relativePath, mimeType) = when (type) {
+                    MediaType.PHOTO, MediaType.GIF -> Triple(
+                        MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                        "${Environment.DIRECTORY_PICTURES}/XDown",
+                        if (type == MediaType.GIF) "image/gif" else "image/jpeg"
+                    )
+                    MediaType.VIDEO -> Triple(
+                        MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                        "${Environment.DIRECTORY_MOVIES}/XDown",
+                        "video/mp4"
+                    )
+                }
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = context.contentResolver.insert(collection, values)
+                if (uri != null) {
+                    try {
+                        context.contentResolver.openOutputStream(uri)?.use { output ->
+                            FileInputStream(file).use { input -> input.copyTo(output) }
+                        }
+                        values.clear()
+                        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        context.contentResolver.update(uri, values, null, null)
+                    } catch (e: Exception) {
+                        context.contentResolver.delete(uri, null, null)
+                    }
+                }
+            } else {
+                MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(file.absolutePath),
+                    arrayOf(mimeTypeFor(type)),
+                    null
+                )
+            }
+        }
+    }
+
+    private fun mimeTypeFor(type: MediaType): String = when (type) {
+        MediaType.PHOTO -> "image/jpeg"
+        MediaType.GIF -> "image/gif"
+        MediaType.VIDEO -> "video/mp4"
     }
 
     suspend fun getAvailableQualities(mediaItem: MediaItem): List<MediaQuality> {
