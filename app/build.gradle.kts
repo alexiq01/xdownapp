@@ -9,6 +9,23 @@ android {
     namespace = "com.xdown.app"
     compileSdk = 34
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("XDOWN_KEYSTORE")
+            val keystorePassword = System.getenv("XDOWN_KEYSTORE_PASSWORD")
+            val keyAliasValue = System.getenv("XDOWN_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("XDOWN_KEY_PASSWORD")
+            if (keystorePath != null && keystorePassword != null &&
+                keyAliasValue != null && keyPasswordValue != null
+            ) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.xdown.app"
         minSdk = 26
@@ -25,6 +42,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

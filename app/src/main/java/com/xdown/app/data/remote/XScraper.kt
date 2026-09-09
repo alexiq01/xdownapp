@@ -371,7 +371,7 @@ class XScraper @Inject constructor() {
         val userResult = userResults?.get("result") as? Map<*, *>
         val userLegacy = userResult?.get("legacy") as? Map<*, *>
 
-        val mediaList = parseExtendedEntities(legacy?.get("extended_entities") as? Map<*>)
+        val mediaList = parseExtendedEntities(legacy?.get("extended_entities") as? Map<*, *>)
 
         return TweetResultData(
             typename = data["__typename"] as? String,

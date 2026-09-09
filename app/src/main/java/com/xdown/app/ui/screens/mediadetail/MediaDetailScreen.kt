@@ -311,7 +311,7 @@ private fun QualityCard(
                             contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(
-                                progress = { progress?.progress ?: 0f },
+                                progress = progress?.progress ?: 0f,
                                 modifier = Modifier.size(40.dp),
                                 strokeWidth = 3.dp,
                                 color = XBlue,
@@ -353,7 +353,7 @@ private fun QualityCard(
             if (isDownloading) {
                 Spacer(modifier = Modifier.height(12.dp))
                 LinearProgressIndicator(
-                    progress = { progress?.progress ?: 0f },
+                    progress = progress?.progress ?: 0f,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(4.dp)

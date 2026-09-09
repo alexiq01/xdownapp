@@ -20,7 +20,7 @@ data class TweetResultData(
     @SerializedName("rest_id") val restId: String?,
     @SerializedName("core") val core: TweetCore?,
     @SerializedName("legacy") val legacy: TweetLegacy?,
-    @SerializedName("mediaDetails") val mediaDetails: List<MediaDetail>?
+    @SerializedName("mediaDetails") val mediaDetails: List<MediaEntity>?
 )
 
 data class TweetCore(
