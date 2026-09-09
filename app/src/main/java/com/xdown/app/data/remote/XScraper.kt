@@ -818,6 +818,9 @@ class XScraper @Inject constructor() {
 
     private fun normalizeTweetUrl(url: String): String {
         var normalized = url.trim()
+        if (normalized.matches(Regex("\\d{15,20}"))) {
+            return "https://x.com/i/status/$normalized"
+        }
 
         if (!normalized.startsWith("http")) {
             normalized = "https://x.com/$normalized"
@@ -825,7 +828,7 @@ class XScraper @Inject constructor() {
 
         normalized = normalized.replace("twitter.com", "x.com")
 
-        val statusPattern = """x\.com/(\w+)/status/(\d+)""".toRegex()
+        val statusPattern = """x\.com/[^/]+/status(?:es)?/(\d{15,20})""".toRegex()
         val match = statusPattern.find(normalized)
         if (match != null) {
             return normalized
@@ -835,7 +838,7 @@ class XScraper @Inject constructor() {
     }
 
     private fun extractTweetId(url: String): String? {
-        val pattern = """(?:x\.com|twitter\.com)/\w+/status/(\d+)""".toRegex()
+        val pattern = """(?:x\.com|twitter\.com)/[^/]+/status(?:es)?/(\d{15,20})(?:[^0-9]|$)""".toRegex()
         return pattern.find(url)?.groupValues?.get(1)
     }
 }

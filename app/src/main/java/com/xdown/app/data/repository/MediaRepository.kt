@@ -36,7 +36,7 @@ class MediaRepository @Inject constructor(
             }
 
             if (tweetResponse == null) {
-                return Result.failure(Exception("Could not fetch media. Please check the URL or username."))
+                return Result.failure(Exception("Could not fetch media. Use a public X post URL such as x.com/user/status/1234567890123456789."))
             }
 
             val mediaItems = parseMediaItems(tweetResponse)
@@ -149,11 +149,9 @@ class MediaRepository @Inject constructor(
     }
 
     private fun isTweetUrl(input: String): Boolean {
+        if (input.matches(Regex("\\d{15,20}"))) return true
         val patterns = listOf(
-            """https?://x\.com/\w+/status(?:es)?/\d+.*""",
-            """https?://twitter\.com/\w+/status(?:es)?/\d+.*""",
-            """https?://mobile\.x\.com/\w+/status(?:es)?/\d+.*""",
-            """https?://mobile\.twitter\.com/\w+/status(?:es)?/\d+.*"""
+            """https?://(?:mobile\.)?(?:x|twitter)\.com/[^/]+/status(?:es)?/\d{15,20}.*"""
         )
         return patterns.any { input.matches(Regex(it)) }
     }
