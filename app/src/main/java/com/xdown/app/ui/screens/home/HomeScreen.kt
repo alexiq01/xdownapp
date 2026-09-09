@@ -51,6 +51,7 @@ import com.xdown.app.ui.theme.*
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    initialInput: String? = null,
     onNavigateToDetail: (MediaItem) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -68,6 +69,12 @@ fun HomeScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
+
+    LaunchedEffect(initialInput) {
+        if (!initialInput.isNullOrBlank() && uiState.input.isBlank()) {
+            viewModel.onInputChanged(initialInput)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -159,6 +166,18 @@ fun HomeScreen(
                     title = "Media Found",
                     subtitle = "${uiState.mediaItems.size} items"
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = viewModel::downloadAllBestQuality,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isLoading,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Filled.Download, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Download all in best quality")
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 LazyColumn(

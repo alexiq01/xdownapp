@@ -1,5 +1,6 @@
 package com.xdown.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,9 +24,17 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    XDownNavGraph()
+                    XDownNavGraph(initialInput = intent.extractSharedText())
                 }
             }
         }
+    }
+
+    private fun Intent.extractSharedText(): String? {
+        return when (action) {
+            Intent.ACTION_SEND -> getStringExtra(Intent.EXTRA_TEXT)
+            Intent.ACTION_VIEW -> dataString
+            else -> null
+        }?.trim()?.takeIf { it.isNotEmpty() }
     }
 }

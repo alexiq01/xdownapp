@@ -81,6 +81,12 @@ class HomeViewModel @Inject constructor(
         )
     }
 
+    fun downloadAllBestQuality() {
+        _uiState.value.mediaItems.forEach { mediaItem ->
+            startDownload(mediaItem, null)
+        }
+    }
+
     fun dismissQualitySheet() {
         _uiState.value = _uiState.value.copy(
             showQualitySheet = false,

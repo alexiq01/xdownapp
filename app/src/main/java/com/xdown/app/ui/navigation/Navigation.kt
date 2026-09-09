@@ -29,7 +29,8 @@ sealed class Screen(val route: String) {
 
 @Composable
 fun XDownNavGraph(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    initialInput: String? = null
 ) {
     val viewModel: HomeViewModel = hiltViewModel()
     val gson = remember { Gson() }
@@ -73,6 +74,7 @@ fun XDownNavGraph(
             composable(Screen.Home.route) {
                 HomeScreen(
                     viewModel = viewModel,
+                    initialInput = initialInput,
                     onNavigateToDetail = { mediaItem ->
                         val mediaJson = gson.toJson(mediaItem)
                         navController.navigate(
