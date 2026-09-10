@@ -1,5 +1,6 @@
 package com.xdown.app.data.remote
 
+import android.util.Log
 import com.xdown.app.data.model.*
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -41,11 +42,13 @@ class XScraper @Inject constructor() {
         return try {
             val normalizedUrl = normalizeTweetUrl(tweetUrl)
             val tweetId = extractTweetId(normalizedUrl) ?: return null
+            Log.d("XDOWN", "Input URL=$tweetUrl normalized=$normalizedUrl tweetId=$tweetId")
 
             val syndicationResult = trySyndicationApi(tweetId)
             if (syndicationResult != null) return syndicationResult
 
-            val fxtwitterResult = tryFxtwitterApi(tweetId)
+            val fxtwitterResult = tryFxtwitterApi(tweetId, "2/status")
+                ?: tryFxtwitterApi(tweetId, "status")
             if (fxtwitterResult != null) return fxtwitterResult
 
             val vxtwitterResult = tryVxtwitterApi(tweetId)
@@ -89,8 +92,10 @@ class XScraper @Inject constructor() {
             val response = client.newCall(
                 Request.Builder().url(url).header("Accept", "application/json").get().build()
             ).execute()
+            Log.d("XDOWN", "Syndication HTTP=${response.code} url=$url")
             if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
+            Log.d("XDOWN", "Syndication JSON=${body.take(500)}")
             parseSyndicationResponse(body, tweetId)
         } catch (_: Exception) {
             null
@@ -134,7 +139,11 @@ class XScraper @Inject constructor() {
                 )
             )
         }
-        if (media.isEmpty()) return null
+        if (media.isEmpty()) {
+            Log.d("XDOWN", "Syndication parser failure: mediaDetails empty")
+            return null
+        }
+        Log.d("XDOWN", "Syndication parsed media=${media.size}")
         val user = root.getAsJsonObject("user")
         val screenName = user?.stringValue("screen_name") ?: "unknown"
         return TweetResponse(
@@ -190,9 +199,10 @@ class XScraper @Inject constructor() {
     private fun com.google.gson.JsonObject.intValue(name: String): Int? =
         get(name)?.takeUnless { it.isJsonNull }?.asInt
 
-    private suspend fun tryFxtwitterApi(tweetId: String): TweetResponse? {
+    private suspend fun tryFxtwitterApi(tweetId: String, endpoint: String): TweetResponse? {
         return try {
-            val url = "https://api.fxtwitter.com/status/$tweetId"
+            val url = "https://api.fxtwitter.com/$endpoint/$tweetId"
+            Log.d("XDOWN", "FxTwitter request id=$tweetId url=$url")
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "Mozilla/5.0")
@@ -200,17 +210,27 @@ class XScraper @Inject constructor() {
                 .build()
 
             val response = client.newCall(request).execute()
+            Log.d("XDOWN", "FxTwitter HTTP=${response.code}")
             if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
+            Log.d("XDOWN", "FxTwitter JSON=${body.take(500)}")
 
             val tweetData = gson.fromJson(body, Map::class.java)
 
-            val tweet = tweetData["tweet"] as? Map<*, *> ?: tweetData
-            val author = tweet["author"] as? Map<*, *>
+            val tweet = (tweetData["status"] as? Map<*, *>)
+                ?: (tweetData["tweet"] as? Map<*, *>)
+                ?: return null
+            val author = (tweet["author"] as? Map<*, *>)
+                ?: (tweetData["author"] as? Map<*, *>)
             val media = tweet["media"] as? Map<*, *>
             val allMedia = media?.get("all") as? List<*>
             val photos = media?.get("photos") as? List<*>
             val videos = media?.get("videos") as? List<*>
+            Log.d(
+                "XDOWN",
+                "FxTwitter root status=${tweetData["status"] != null} tweet=${tweetData["tweet"] != null} " +
+                    "media=${media != null} photos=${photos?.size ?: 0} videos=${videos?.size ?: 0} all=${allMedia?.size ?: 0}"
+            )
 
             val mediaEntities = mutableListOf<MediaEntity>()
 
@@ -312,7 +332,11 @@ class XScraper @Inject constructor() {
 
             }
 
-            if (mediaEntities.isEmpty()) return null
+            if (mediaEntities.isEmpty()) {
+                Log.d("XDOWN", "FxTwitter parser failure: no media extracted")
+                return null
+            }
+            Log.d("XDOWN", "FxTwitter parsed media=${mediaEntities.size}")
 
             val screenName = author?.get("screen_name") as? String
                 ?: author?.get("name") as? String
