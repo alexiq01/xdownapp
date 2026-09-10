@@ -2,7 +2,8 @@ package com.xdown.app.util
 
 object StringUtils {
     fun extractTweetId(url: String): String? {
-        val pattern = """(?:x\.com|twitter\.com)/\w+/status/(\d+)""".toRegex()
+        if (url.trim().matches(Regex("\\d{1,25}"))) return url.trim()
+        val pattern = """(?:x\.com|twitter\.com)/[^/]+/status(?:es)?/(\d{1,25})(?:[^0-9]|$)""".toRegex()
         return pattern.find(url)?.groupValues?.get(1)
     }
 
@@ -11,7 +12,7 @@ object StringUtils {
     }
 
     fun isValidTweetUrl(url: String): Boolean {
-        val pattern = """https?://(?:x\.com|twitter\.com)/\w+/status/\d+.*""".toRegex()
+        val pattern = """(?:https?://)?(?:mobile\.)?(?:x|twitter)\.com/[^/]+/status(?:es)?/\d{1,25}(?:[?#].*)?""".toRegex()
         return pattern.matches(url.trim())
     }
 

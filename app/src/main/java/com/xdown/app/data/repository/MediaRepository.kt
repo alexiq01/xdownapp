@@ -36,7 +36,15 @@ class MediaRepository @Inject constructor(
             }
 
             if (tweetResponse == null) {
-                return Result.failure(Exception("Could not fetch media. Use a public X post URL such as x.com/user/status/1234567890123456789."))
+                return Result.failure(
+                    Exception(
+                        if (isTweetUrl(cleanedInput) || cleanedInput.matches(Regex("\\d{1,25}"))) {
+                            "Unable to extract media from this post. Make sure the post is public and contains downloadable media."
+                        } else {
+                            "Invalid X URL or username. Use x.com/user/status/POST_ID or a public username."
+                        }
+                    )
+                )
             }
 
             val mediaItems = parseMediaItems(tweetResponse)
@@ -144,14 +152,14 @@ class MediaRepository @Inject constructor(
         ) "https://$trimmed" else trimmed
         return withScheme
             .replace("www.", "")
-            .replace("https://", "http://")
+            .replace(Regex("\\s+"), "")
             .removeSuffix("/")
     }
 
     private fun isTweetUrl(input: String): Boolean {
-        if (input.matches(Regex("\\d{15,20}"))) return true
+        if (input.matches(Regex("\\d{1,25}"))) return true
         val patterns = listOf(
-            """https?://(?:mobile\.)?(?:x|twitter)\.com/[^/]+/status(?:es)?/\d{15,20}.*"""
+            """https?://(?:mobile\.)?(?:x|twitter)\.com/[^/]+/status(?:es)?/\d{1,25}(?:[?#].*)?"""
         )
         return patterns.any { input.matches(Regex(it)) }
     }

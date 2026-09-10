@@ -89,6 +89,7 @@ class XScraper @Inject constructor() {
             val response = client.newCall(
                 Request.Builder().url(url).header("Accept", "application/json").get().build()
             ).execute()
+            if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
             parseSyndicationResponse(body, tweetId)
         } catch (_: Exception) {
@@ -97,7 +98,7 @@ class XScraper @Inject constructor() {
     }
 
     private fun parseSyndicationResponse(body: String, tweetId: String): TweetResponse? {
-        val root = JsonParser.parseString(body).asJsonObject
+        val root = try { JsonParser.parseString(body).asJsonObject } catch (_: Exception) { return null }
         val mediaJson = root.getAsJsonArray("mediaDetails") ?: return null
         val media = mediaJson.mapNotNull { element ->
             val item = element.asJsonObject
@@ -199,6 +200,7 @@ class XScraper @Inject constructor() {
                 .build()
 
             val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
 
             val tweetData = gson.fromJson(body, Map::class.java)
@@ -221,7 +223,11 @@ class XScraper @Inject constructor() {
                     val variants = formats.orEmpty().mapNotNull { rawFormat ->
                         val format = rawFormat as? Map<*, *> ?: return@mapNotNull null
                         val formatUrl = format["url"] as? String ?: return@mapNotNull null
-                        if ((format["container"] as? String) != "mp4") return@mapNotNull null
+                        val container = (format["container"] as? String)?.lowercase()
+                        val formatType = (format["type"] as? String)?.lowercase()
+                        if (container != "mp4" && formatType != "mp4" && formatType != "video/mp4") {
+                            return@mapNotNull null
+                        }
                         VideoVariant(
                             contentType = "video/mp4",
                             url = formatUrl,
@@ -356,6 +362,7 @@ class XScraper @Inject constructor() {
                 .build()
 
             val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
 
             val tweetData = gson.fromJson(body, Map::class.java)
