@@ -1,11 +1,14 @@
 package com.xdown.app.data.remote
 
 import android.util.Log
+import android.net.Uri
 import com.xdown.app.data.model.*
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -54,6 +57,9 @@ class XScraper @Inject constructor() {
             val vxtwitterResult = tryVxtwitterApi(tweetId)
             if (vxtwitterResult != null) return vxtwitterResult
 
+            val siteResult = tryXDownloaderService(normalizedUrl, tweetId)
+            if (siteResult != null) return siteResult
+
             val request = Request.Builder()
                 .url(normalizedUrl)
                 .get()
@@ -64,6 +70,84 @@ class XScraper @Inject constructor() {
 
             extractTweetData(html)
         } catch (e: Exception) {
+            null
+        }
+    }
+
+    private suspend fun tryXDownloaderService(tweetUrl: String, tweetId: String): TweetResponse? {
+        return try {
+            val jsonType = "application/json".toMediaType()
+            val validateBody = gson.toJson(mapOf("url" to tweetUrl)).toRequestBody(jsonType)
+            val validateRequest = Request.Builder()
+                .url("https://api.x-downloader.com/validate")
+                .post(validateBody)
+                .build()
+            val validateResponse = client.newCall(validateRequest).execute()
+            Log.d("XDOWN", "Site validate HTTP=${validateResponse.code} url=$tweetUrl")
+            if (!validateResponse.isSuccessful) return null
+
+            val requestBody = gson.toJson(mapOf("url" to tweetUrl, "type" to ".mp4"))
+                .toRequestBody(jsonType)
+            val request = Request.Builder()
+                .url("https://api.x-downloader.com/request")
+                .post(requestBody)
+                .build()
+            val response = client.newCall(request).execute()
+            Log.d("XDOWN", "Site request HTTP=${response.code}")
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            Log.d("XDOWN", "Site response JSON=${body.take(500)}")
+
+            val result = gson.fromJson(body, Map::class.java)
+            if ((result["status"] as? String)?.lowercase() == "error") return null
+            val host = result["host"] as? String ?: "api.x-downloader.com"
+            val formats = result["formats"] as? List<*>
+            val fallbackFilename = result["filename"] as? String
+            val files = formats.orEmpty().mapNotNull { raw ->
+                val item = raw as? Map<*, *> ?: return@mapNotNull null
+                val filename = item["filename"] as? String ?: return@mapNotNull null
+                val label = item["label"] as? String
+                val dimensions = label?.split("x")
+                val width = dimensions?.getOrNull(0)?.toIntOrNull()
+                val height = dimensions?.getOrNull(1)?.toIntOrNull()
+                val directUrl = "https://$host/${Uri.encode(filename, "/")}"
+                MediaEntity(
+                    idStr = tweetId,
+                    mediaUrlHttps = directUrl,
+                    type = "video",
+                    originalInfo = OriginalInfo(width, height, null, null, null),
+                    videoInfo = VideoInfo(null, listOf(VideoVariant("video/mp4", directUrl, null, width, height)))
+                )
+            }.toMutableList()
+            if (files.isEmpty() && fallbackFilename != null) {
+                val directUrl = "https://$host/${Uri.encode(fallbackFilename, "/")}"
+                files += MediaEntity(
+                    idStr = tweetId,
+                    mediaUrlHttps = directUrl,
+                    type = "video",
+                    originalInfo = null,
+                    videoInfo = VideoInfo(null, listOf(VideoVariant("video/mp4", directUrl, null, null, null)))
+                )
+            }
+            if (files.isEmpty()) return null
+            Log.d("XDOWN", "Site parser extracted media=${files.size}")
+            val title = result["description"] as? String ?: result["title"] as? String
+            TweetResponse(
+                data = TweetData(
+                    tweetResult = TweetResult(
+                        result = TweetResultData(
+                            typename = "Tweet",
+                            restId = tweetId,
+                            core = null,
+                            legacy = TweetLegacy(title, null, ExtendedEntities(files)),
+                            mediaDetails = files
+                        )
+                    )
+                ),
+                errors = null
+            )
+        } catch (e: Exception) {
+            Log.d("XDOWN", "Site parser failure: ${e.javaClass.simpleName}")
             null
         }
     }
